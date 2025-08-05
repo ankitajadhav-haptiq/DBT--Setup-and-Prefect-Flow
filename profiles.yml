@@ -1,0 +1,14 @@
+my_dbt_tasks:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: obwaypy-lm59181 
+      user: ANKITA_J
+      password: PASS@123
+      role: DEV_ROLE
+      database: PRACTICE_DB
+      warehouse: MY_WH
+      schema: DBT_TEST
+      threads: 1
+      client_session_keep_alive: false
