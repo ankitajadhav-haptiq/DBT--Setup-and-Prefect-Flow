@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./run_dbt_with_"
+    ]
+}

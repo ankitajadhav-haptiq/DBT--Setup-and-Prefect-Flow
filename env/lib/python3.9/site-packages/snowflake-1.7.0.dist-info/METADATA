@@ -1,0 +1,40 @@
+Metadata-Version: 2.4
+Name: snowflake
+Version: 1.7.0
+Summary: Snowflake Python API
+Author-email: "Snowflake, Inc." <snowflake-python-libraries-dl@snowflake.com>
+License: Apache-2.0
+License-File: LICENSE
+Keywords: Snowflake,analytics,cloud,database,db,warehouse
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Environment :: Other Environment
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Information Technology
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: SQL
+Classifier: Topic :: Database
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: <3.13,>=3.9
+Requires-Dist: snowflake-core==1.7.0
+Requires-Dist: snowflake-legacy
+Provides-Extra: ml
+Requires-Dist: snowflake-ml-python; extra == 'ml'
+Description-Content-Type: text/markdown
+
+The Snowflake Python API is the unified Python API across all Snowflake workloads, providing APIs for all Snowflake resources across data engineering, Snowpark, Snowpark ML, and client application workloads.
+
+The `snowflake` package is the PEP 420 namespace parent package for the Snowflake Python API, including Snowpark.  
+Installing snowflake automatically installs all subpackages as dependencies.
+
+[Developer guide](https://docs.snowflake.com/developer-guide/snowflake-python-api/snowflake-python-overview)
+
+[API reference](https://docs.snowflake.com/developer-guide/snowflake-python-api/reference/latest/index)

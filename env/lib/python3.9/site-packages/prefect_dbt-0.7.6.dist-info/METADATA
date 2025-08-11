@@ -1,0 +1,54 @@
+Metadata-Version: 2.4
+Name: prefect-dbt
+Version: 0.7.6
+Summary: Prefect integrations for working with dbt
+Author-email: "Prefect Technologies, Inc." <help@prefect.io>
+License: Apache License 2.0
+Project-URL: Homepage, https://github.com/PrefectHQ/prefect/tree/main/src/integrations/prefect-dbt
+Keywords: prefect
+Classifier: Natural Language :: English
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: prefect>=3.4.9
+Requires-Dist: dbt-core>=1.7.0
+Requires-Dist: prefect_shell>=0.3.0
+Requires-Dist: sgqlc>=16.0.0
+Provides-Extra: snowflake
+Requires-Dist: prefect-snowflake>=0.28.0; extra == "snowflake"
+Requires-Dist: dbt-snowflake; extra == "snowflake"
+Provides-Extra: bigquery
+Requires-Dist: prefect-gcp[bigquery]>=0.6.0; extra == "bigquery"
+Requires-Dist: dbt-bigquery; extra == "bigquery"
+Provides-Extra: postgres
+Requires-Dist: prefect-sqlalchemy>=0.5.1; extra == "postgres"
+Requires-Dist: dbt-postgres; extra == "postgres"
+Provides-Extra: all-extras
+Requires-Dist: dbt-bigquery; extra == "all-extras"
+Requires-Dist: dbt-postgres; extra == "all-extras"
+Requires-Dist: dbt-snowflake; extra == "all-extras"
+Requires-Dist: prefect-gcp[bigquery]>=0.6.0; extra == "all-extras"
+Requires-Dist: prefect-snowflake>=0.28.0; extra == "all-extras"
+Requires-Dist: prefect-sqlalchemy>=0.5.1; extra == "all-extras"
+Dynamic: license-file
+
+# prefect-dbt
+
+<p align="center">
+    <a href="https://pypi.python.org/pypi/prefect-dbt/" alt="PyPI version">
+        <img alt="PyPI" src="https://img.shields.io/pypi/v/prefect-dbt?color=26272B&labelColor=090422"></a>0
+    <a href="https://pepy.tech/badge/prefect-dbt/" alt="Downloads">
+        <img src="https://img.shields.io/pypi/dm/prefect-dbt?color=26272B&labelColor=090422" /></a>
+</p>
+
+See the docs at [https://docs.prefect.io/integrations/prefect-dbt](https://docs.prefect.io/integrations/prefect-dbt) for more information.

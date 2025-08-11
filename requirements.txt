@@ -1,0 +1,4 @@
+prefect==2.14.5
+dbt-core==1.10.5
+dbt-snowflake==1.10.5
+python-dotenv==1.0.1
