@@ -129,12 +129,21 @@ def set_env_vars(model: str):
     os.environ[f"{env_prefix}_DBT_ENV_SECRET_ROLE"] = str(creds.get("role") or "")
     os.environ[f"{env_prefix}_DBT_ENV_SECRET_WAREHOUSE"] = str(creds.get("warehouse") or "")
     os.environ[f"{env_prefix}_DBT_ENV_SECRET_DATABASE"] = str(creds.get("database") or "")
+
+    fixed_schema = os.getenv("FIXED_DBT_SCHEMA")
+    if not fixed_schema:
+        raise ValueError("FIXED_DBT_SCHEMA environment variable is not set.")
+
+    os.environ[f"{env_prefix}_DBT_ENV_SECRET_SCHEMA"] = fixed_schema
+
+    logger.info(f"Environment variables set with fixed schema '{fixed_schema}' for target '{target_env}'.")
     
-    # Use the model name as schema
-    os.environ[f"{env_prefix}_DBT_ENV_SECRET_SCHEMA"] = str(model or "")
+    # # Use the model name as schema
+    # os.environ[f"{env_prefix}_DBT_ENV_SECRET_SCHEMA"] = str(model or "")
 
-    logger.info(f" Environment variables set for model: {model} under target: {target_env}")
+    # logger.info(f" Environment variables set for model: {model} under target: {target_env}")
 
+   
 
 # @flow
 # def test_set_env_vars():
@@ -291,15 +300,13 @@ def run_dbt_run(model: str, full_refresh: bool) -> str:
 
 @task
 def run_dbt_per_schema(model: str, full_refresh: bool, seeds_excluded: bool):
-    """
-    Runs dbt commands per schema.
-
-    Args:
-        model (str): The name of the model to run.
-        full_refresh (bool): Whether to run dbt commands with the --full-refresh flag.
-        seed_exclusions (bool): A list of models or subdirectories to exclude.
-    """
     set_env_vars(model)
+    target_env = os.getenv("DBT_ENV_SECRET_TARGET")
+    env_prefix = {"dev": "DEV", "stage": "STAGE", "production": "PROD"}.get(target_env)
+    
+    schema = os.getenv(f"{env_prefix}_DBT_ENV_SECRET_SCHEMA")
+    print(f"Running dbt commands with schema: {schema}")
+    
     dbt_debug_result = run_dbt_debug()
     dbt_seed_result = None
     if not seeds_excluded:
@@ -308,16 +315,17 @@ def run_dbt_per_schema(model: str, full_refresh: bool, seeds_excluded: bool):
     return dbt_seed_result, dbt_run_result, dbt_debug_result
 
 
-# @flow
-# def run_all_dbt_tasks():
-#     result = run_dbt_per_schema(
-#         model="my_model",
-#         full_refresh=True,
-#         seeds_excluded=False
-#     )
-#     print("Final result:", result)
-# if __name__ == "__main__":
-#     run_all_dbt_tasks()
+
+@flow
+def run_all_dbt_tasks():
+    result = run_dbt_per_schema(
+        model="my_model",
+        full_refresh=True,
+        seeds_excluded=False
+    )
+    print("Final result:", result)
+if __name__ == "__main__":
+    run_all_dbt_tasks()
 
 @flow
 def trigger_dbt_flow(full_refresh: bool = False, models=None,
@@ -382,10 +390,10 @@ def trigger_dbt_flow(full_refresh: bool = False, models=None,
 
 
 
-if __name__ == "__main__":
-    trigger_dbt_flow(
-        full_refresh=False,
-        models=None,
-        # seed_exclusions=["haptiq"],
-        # model_exclusions=["haptiq"]
-    )
+# if __name__ == "__main__":
+#     trigger_dbt_flow(
+#         full_refresh=False,
+#         models=None,
+#         # seed_exclusions=["haptiq"],
+#         # model_exclusions=["haptiq"]
+#     )
