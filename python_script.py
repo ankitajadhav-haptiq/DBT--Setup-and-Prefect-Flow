@@ -299,7 +299,7 @@ def run_dbt_run(model: str, full_refresh: bool) -> str:
 
 
 @task
-def run_dbt_per_schema(model: str, full_refresh: bool, seeds_excluded: bool):
+def run_dbt_schema(model: str, full_refresh: bool, seeds_excluded: bool):
     set_env_vars(model)
     target_env = os.getenv("DBT_ENV_SECRET_TARGET")
     env_prefix = {"dev": "DEV", "stage": "STAGE", "production": "PROD"}.get(target_env)
@@ -318,7 +318,7 @@ def run_dbt_per_schema(model: str, full_refresh: bool, seeds_excluded: bool):
 
 @flow
 def run_all_dbt_tasks():
-    result = run_dbt_per_schema(
+    result = run_dbt_schema(
         model="my_model",
         full_refresh=True,
         seeds_excluded=False
@@ -377,7 +377,7 @@ def trigger_dbt_flow(full_refresh: bool = False, models=None,
     dbt_debug_result = []
     for model in models:
         seeds_excluded = any(model in seed_exclusions for model in models)
-        seed_result, run_result, debug_result = run_dbt_per_schema(
+        seed_result, run_result, debug_result = run_dbt_schema(
             model, full_refresh, seeds_excluded
             )
         dbt_seed_result.append(seed_result)
@@ -390,10 +390,10 @@ def trigger_dbt_flow(full_refresh: bool = False, models=None,
 
 
 
-# if __name__ == "__main__":
-#     trigger_dbt_flow(
-#         full_refresh=False,
-#         models=None,
-#         # seed_exclusions=["haptiq"],
-#         # model_exclusions=["haptiq"]
-#     )
+if __name__ == "__main__":
+    trigger_dbt_flow(
+        full_refresh=False,
+        models=None,
+        # seed_exclusions=["haptiq"],
+        # model_exclusions=["haptiq"]
+    )
