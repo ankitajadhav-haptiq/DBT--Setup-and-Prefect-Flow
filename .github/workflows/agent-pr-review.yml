@@ -45,13 +45,13 @@ jobs:
         id: review
         if: steps.changed.outputs.count != '0'
         run: |
+          set +e
           python custom_agent/main.py \
             --mode static \
             --files ${{ steps.changed.outputs.files }} \
             --output agent_pr_report.md \
             --ci
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
 
       - name: No files changed
         if: steps.changed.outputs.count == '0'
@@ -86,7 +86,7 @@ jobs:
             echo "REVIEW_EOF"
           } >> "$GITHUB_OUTPUT"
           [[ "$EXIT" == "1" ]] && echo "event=REQUEST_CHANGES" >> "$GITHUB_OUTPUT" \
-                                || echo "event=APPROVE"         >> "$GITHUB_OUTPUT"
+                                || echo "event=COMMENT"         >> "$GITHUB_OUTPUT"
 
       - name: Submit PR review
         if: steps.changed.outputs.count != '0'
