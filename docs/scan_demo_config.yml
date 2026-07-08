@@ -1,0 +1,9 @@
+# Demo file to verify the PR review agent scans non-.sql/.py files too.
+# This is a throwaway test file for confirming the "scan all file types" change.
+
+service_name: demo-scan-check
+retry_count: 3
+
+# Intentionally fake credential below — verifies the secrets check fires
+# on a file type (.yml) that has no dedicated SQL/Python scanner.
+api_key: "sk_test_FAKE1234567890abcdef"
