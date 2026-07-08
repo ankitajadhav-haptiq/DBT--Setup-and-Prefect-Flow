@@ -1,0 +1,13 @@
+# custom_agent — minimal runtime dependencies
+# The agent intentionally avoids heavy frameworks.
+# audit_agent scanners (sql, python, secrets) are imported directly.
+
+# HTTP client — used by OllamaLLM to call localhost:11434
+requests>=2.31.0
+
+# YAML parsing — used by file_parser and dbt schema readers
+pyyaml>=6.0
+
+# Optional: pip-audit for dependency vulnerability scanning
+# Install separately if you want SEC-006 checks:
+#   pip install pip-audit

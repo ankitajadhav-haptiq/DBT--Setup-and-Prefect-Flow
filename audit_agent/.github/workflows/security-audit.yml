@@ -1,0 +1,119 @@
+name: Security & Performance Audit
+
+on:
+  pull_request:
+    branches: [master, main, develop]
+    paths:
+      - 'vision_dbt/**'
+      - 'connectors/**'
+      - 'prefect_flows/**'
+      - 'utils/**'
+      - 'audit_agent/**'
+  push:
+    branches: [master, main, develop]
+  schedule:
+    # Nightly full scan at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Scan mode (static or full)'
+        required: true
+        default: 'static'
+        type: choice
+        options: [static, full]
+
+jobs:
+  audit:
+    name: Repository Audit
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write   # Needed to post PR comments
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # Full history for secret scanning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install audit agent dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r audit_agent/requirements.txt
+
+      - name: Run static audit scan
+        id: audit
+        run: |
+          python audit_agent/main.py . \
+            --mode ${{ github.event.inputs.mode || 'static' }} \
+            --output audit_report.md \
+            --json
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true  # We handle exit codes below
+
+      - name: Upload audit report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report-${{ github.sha }}
+          path: |
+            audit_report.md
+            audit_workspace/findings.json
+          retention-days: 30
+
+      - name: Post summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = '';
+            try {
+              report = fs.readFileSync('audit_report.md', 'utf8').slice(0, 65000);
+            } catch(e) {
+              report = 'Audit report not found.';
+            }
+
+            // Extract executive summary (first 60 lines)
+            const lines = report.split('\n').slice(0, 60).join('\n');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔐 Audit Agent Report\n\n${lines}\n\n[Full report attached as workflow artifact](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${{ github.run_id }})`
+            });
+
+      - name: Block merge on CRITICAL findings
+        if: steps.audit.outputs.exit_code == '1'
+        run: |
+          echo "❌ CRITICAL security or quality findings detected."
+          echo "Fix all P0 findings before merging this PR."
+          echo "See the uploaded audit_report.md artifact for details."
+          exit 1
+
+      - name: Check for secret leaks with gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Run pip-audit for CVE scanning
+        run: |
+          pip install pip-audit
+          pip-audit --format json --output audit_workspace/pip_audit.json || true
+          pip-audit || true
+
+      - name: Upload pip-audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-${{ github.sha }}
+          path: audit_workspace/pip_audit.json
+          retention-days: 14

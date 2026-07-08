@@ -1,0 +1,143 @@
+scan_repository_structure:
+  description: >
+    Read the pre-built repository manifest from {repo_manifest_json}.
+    Summarize: total SQL files, Python files, dbt domains found, number of
+    incremental vs table materializations, private key files detected, and
+    .env files with active credentials. This becomes the shared context
+    for all downstream tasks.
+  expected_output: >
+    A structured summary listing all file counts, domain names, materialization
+    types, and a flagged list of files requiring immediate attention.
+  agent: security_auditor
+
+audit_credentials_and_secrets:
+  description: >
+    From the manifest in {repo_manifest_json}, produce a Markdown section
+    "## Credential & Secrets Exposure Findings".
+    Address each credential_risk entry: private key files ({private_key_files}),
+    .env with active exports, profiles.yml in VCS, and Bandit B608 suppression.
+    For each: state severity, CWE, OWASP category, and the exact remediation
+    commands (git filter-repo, .gitignore entries, Snowflake ALTER USER statement).
+  expected_output: >
+    Markdown section with a severity-sorted table (File | Issue | Severity | CWE | Fix)
+    and ready-to-run code blocks for every remediation step.
+  agent: security_auditor
+  context:
+    - scan_repository_structure
+
+audit_jinja_injection_risks:
+  description: >
+    From {repo_manifest_json}, find all sql_files where jinja_injection_risk=true
+    or where jinja_variables appear in macro definitions.
+    For the monthly_exchange_rates macro, show the vulnerable {{ currency_code }}
+    interpolation, explain the injection vector, and provide the safe rewrite
+    using a Jinja allowlist guard with exceptions.raise_compiler_error().
+    Check get_exchange_rates similarly.
+  expected_output: >
+    Markdown section "## Jinja Template Injection Risk Report" showing:
+    vulnerable code block → risk explanation → safe rewritten macro with comments.
+  agent: security_auditor
+  context:
+    - scan_repository_structure
+
+audit_snowflake_rbac:
+  description: >
+    From {repo_manifest_json}, review profiles.yml role assignments.
+    Check: role separation between VENUPLUS_DEV_L2 (dev) and VENUPLUS_ENGINEERS_L2 (prod),
+    whether the dbt service user has only minimum required privileges,
+    whether prod and dev share the same warehouse (HAPTIQ_DEV_WH — they should not),
+    and whether private key passphrase is only set in prod profile.
+    Provide recommended minimum GRANT SQL statements for the dbt service user.
+  expected_output: >
+    Markdown section "## Snowflake RBAC & Access Control Audit" with role
+    separation findings and minimum-privilege GRANT SQL statements.
+  agent: security_auditor
+  context:
+    - scan_repository_structure
+
+analyze_sql_performance:
+  description: >
+    From {repo_manifest_json}, identify all sql_files where:
+    has_select_star=true, has_order_by=true, upper_trim_count>2, cte_count>6.
+    For each finding: name the model, explain the Snowflake performance impact
+    (which operation wastes credits and why), and provide the rewritten SQL
+    with the fix applied. Special focus on:
+    - go_pod_dual_contract_net_calculation_dbt: SELECT * in CTE
+    - go_pod_locker_net_calculation_dbt: ORDER BY in table + 7 CTEs
+    - photo_tiered_commission_dbt: window functions without ROWS frame
+    - All models with UPPER(TRIM()) on join keys
+  expected_output: >
+    Markdown section "## SQL Performance Analysis" with model-by-model findings,
+    estimated Snowflake credit impact, and the optimized SQL rewrite for each.
+  agent: performance_optimizer
+  context:
+    - scan_repository_structure
+
+analyze_materialization_strategy:
+  description: >
+    From {repo_manifest_json}, review dbt_project materialization configs.
+    Recommend CLUSTER BY additions for incremental models using these exact models:
+    - go_pod_kiosk_revenue_dbt → CLUSTER BY (revenue_date, facility_name)
+    - go_pod_live_locker_status_dbt → CLUSTER BY (usage_date, site_name)
+    - photo_revenue_report_dbt → CLUSTER BY (order_date, park_id)
+    - photo_tiered_commission_dbt → CLUSTER BY (order_date, x3_cust_number)
+    Also: evaluate delete+insert vs merge for photo_revenue_report_dbt,
+    and identify table-materialized models that should be incremental.
+  expected_output: >
+    Markdown section "## Materialization & Clustering Strategy" with a
+    recommendation table and updated dbt_project.yml config snippets.
+  agent: performance_optimizer
+  context:
+    - scan_repository_structure
+    - analyze_sql_performance
+
+audit_dbt_quality:
+  description: >
+    From {repo_manifest_json}, review dbt structural quality.
+    Check: which models are missing from schema.yml (most GOPOD Locker_Financial
+    and Locker_Utilisation models have no tests), which incremental models lack
+    unique+not_null tests, whether seed files with financial data should be vaulted,
+    whether x3_financial_locker_report_dbt_old.sql should be deleted, and whether
+    tests/ directory is empty (it is).
+    Provide schema.yml additions for the top 5 most-critical untested models.
+  expected_output: >
+    Markdown section "## dbt Quality & Structural Audit" listing each gap as an
+    engineering ticket with schema.yml or config change needed to remediate.
+  agent: lead_dbt_engineer
+  context:
+    - scan_repository_structure
+
+synthesize_final_report:
+  description: >
+    Synthesize ALL prior task outputs into a complete audit_report.md.
+    Repository: {repo_path} | Risk Score: {risk_score}/100 | Critical findings: {critical_count}
+
+    Structure exactly as:
+    # dbt/Snowflake Security & Performance Audit Report
+    ## Executive Summary
+    ## P0 — Critical Findings (Fix Before Next Deploy)
+    ## P1 — High Priority Findings
+    ## Credential & Secrets Exposure Findings
+    ## Jinja Template Injection Risk Report
+    ## Snowflake RBAC & Access Control Audit
+    ## SQL Performance Analysis
+    ## Materialization & Clustering Strategy
+    ## dbt Quality & Structural Audit
+    ## Appendix: Full Code Rewrites
+
+    Every finding must reference the exact file path. Every code change must be
+    a ready-to-commit replacement block. The report must be immediately actionable
+    as a set of engineering tickets.
+  expected_output: >
+    A complete, well-structured Markdown document saved as audit_report.md,
+    covering all security, performance, and quality dimensions with actionable
+    remediation steps and code rewrites.
+  agent: lead_dbt_engineer
+  output_file: audit_report.md
+  context:
+    - audit_credentials_and_secrets
+    - audit_jinja_injection_risks
+    - audit_snowflake_rbac
+    - analyze_sql_performance
+    - analyze_materialization_strategy
+    - audit_dbt_quality
