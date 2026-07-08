@@ -91,11 +91,14 @@ jobs:
       - name: Submit PR review
         if: steps.changed.outputs.count != '0'
         uses: actions/github-script@v7
+        env:
+          REVIEW_BODY:  ${{ steps.body.outputs.text }}
+          REVIEW_EVENT: ${{ steps.body.outputs.event }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body  = `${{ steps.body.outputs.text }}`;
-            const event = `${{ steps.body.outputs.event }}`;
+            const body  = process.env.REVIEW_BODY;
+            const event = process.env.REVIEW_EVENT;
 
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner, repo: context.repo.repo,
