@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# pre-commit hook — runs static security + complexity scan before every commit.
+# Install: cp audit_agent/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#   OR use setup.sh which does this automatically.
+#
+# Exit 0 → commit proceeds
+# Exit 1 → commit BLOCKED (CRITICAL findings found)
+# ──────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+AGENT_DIR="$REPO_ROOT/audit_agent"
+PYTHON="${PYTHON:-python3}"
+
+# Only run if audit_agent exists
+if [ ! -f "$AGENT_DIR/main.py" ]; then
+    echo "[audit-agent] audit_agent/main.py not found — skipping scan"
+    exit 0
+fi
+
+# Check which files are staged (only scan if .sql or .py files changed)
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+HAS_SQL=$(echo "$STAGED" | grep -E "\.(sql|py|yaml|yml)$" || true)
+
+if [ -z "$HAS_SQL" ]; then
+    echo "[audit-agent] No SQL/Python/YAML changes staged — skipping scan"
+    exit 0
+fi
+
+echo ""
+echo "┌─────────────────────────────────────────────────────┐"
+echo "│  Audit Agent — Pre-Commit Security & Quality Scan   │"
+echo "└─────────────────────────────────────────────────────┘"
+
+# Run the static scan in CI mode (fast, no AI)
+cd "$REPO_ROOT"
+"$PYTHON" "$AGENT_DIR/main.py" "$REPO_ROOT" --mode static --ci \
+    --output "$REPO_ROOT/audit_workspace/pre_commit_report.md" 2>&1
+
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 1 ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ❌  COMMIT BLOCKED — CRITICAL issues found          ║"
+    echo "║  Fix all P0 findings before committing.              ║"
+    echo "║  Full report: audit_workspace/pre_commit_report.md   ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    exit 1
+fi
+
+echo ""
+echo "✅  Pre-commit scan passed — no CRITICAL issues found."
+echo ""
+exit 0

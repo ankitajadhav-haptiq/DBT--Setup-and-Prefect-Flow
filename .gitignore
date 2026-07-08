@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+env/
+.venv/
+venv/
+.env
+*.env
+target/
+logs/
+dbt_packages/
+report.html
+agent_pr_report.html
+agent_pr_report.md
+agent_report.md
+custom_agent/memory/*.json
+.DS_Store
+*.log

@@ -1,0 +1,9 @@
+# Static scan (no AI)
+pyyaml>=6.0.2
+pip-audit>=2.7.0
+
+# AI agents (optional — only needed for --mode full)
+crewai>=0.80.0
+crewai-tools>=0.14.0
+langchain-community>=0.3.0
+ollama>=0.3.3
