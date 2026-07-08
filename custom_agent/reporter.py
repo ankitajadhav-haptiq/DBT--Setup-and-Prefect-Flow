@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 _REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from audit_agent.scanners.base import Finding, Severity
+from audit_agent.scanners.base import Finding, Severity, Category
 
 
 # ── ANSI helpers ──────────────────────────────────────────────────────────────
@@ -64,6 +64,14 @@ _VERDICT_ICON = {
 
 # ── Scanner helpers ───────────────────────────────────────────────────────────
 
+_BINARY_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".tar", ".gz",
+    ".whl", ".pyc", ".so", ".dll", ".exe", ".parquet", ".woff", ".woff2",
+    ".ttf", ".eot", ".db", ".sqlite",
+}
+_GENERIC_SCAN_MAX_BYTES = 200_000
+
+
 def scan_path(path: str) -> List[Finding]:
     """Run the right scanner for a file path and return Finding objects."""
     try:
@@ -73,6 +81,17 @@ def scan_path(path: str) -> List[Finding]:
         return []
 
     fp = _REPO_ROOT / path
+
+    if fp.suffix.lower() in _BINARY_EXTENSIONS:
+        return [Finding(
+            check_id    = "GEN-000",
+            title       = "Binary file — skipped",
+            severity    = Severity.INFO,
+            category    = Category.GENERIC,
+            file        = path,
+            description = "Binary file type — no text-based security/quality scan applies.",
+        )]
+
     content = fp.read_text(errors="ignore") if fp.exists() else _git_show(path)
     if not content:
         return []
@@ -83,7 +102,60 @@ def scan_path(path: str) -> List[Finding]:
     elif path.endswith(".py"):
         manifest = _py_manifest(path, content)
         return PythonScanner().scan(manifest)
-    return []
+    return _scan_generic(path, content[:_GENERIC_SCAN_MAX_BYTES])
+
+
+def _scan_generic(path: str, content: str) -> List[Finding]:
+    """
+    Fallback scan for file types with no dedicated scanner (.csv, .yml, .md, .json, ...).
+    Checks for exposed secrets only — time/space complexity analysis is not
+    meaningful for non-code files, so it's explicitly called out as N/A.
+    """
+    from audit_agent.scanners.secrets_scanner import _RE_GENERIC_SECRET, _RE_PRIVATE_KEY_BLOCK
+
+    findings: List[Finding] = []
+
+    if _RE_PRIVATE_KEY_BLOCK.search(content):
+        findings.append(Finding(
+            check_id    = "SEC-006",
+            title       = "Private key block embedded in file",
+            severity    = Severity.CRITICAL,
+            category    = Category.GENERIC,
+            file        = path,
+            description = "A PEM-format private key block was found in this file.",
+            suggestion  = "Remove the key from version control and rotate it immediately.",
+            cwe         = "CWE-312",
+        ))
+
+    for match in _RE_GENERIC_SECRET.finditer(content):
+        line_no = content[: match.start()].count("\n") + 1
+        findings.append(Finding(
+            check_id     = "SEC-007",
+            title        = "Potential hardcoded credential",
+            severity     = Severity.HIGH,
+            category     = Category.GENERIC,
+            file         = path,
+            line         = line_no,
+            code_snippet = match.group(0)[:80],
+            description  = f"Found what appears to be a hardcoded credential at line {line_no}.",
+            suggestion   = "Move this value to an environment variable or secret manager.",
+            cwe          = "CWE-798",
+        ))
+
+    if not findings:
+        findings.append(Finding(
+            check_id    = "GEN-001",
+            title       = "No dedicated scanner for this file type",
+            severity    = Severity.INFO,
+            category    = Category.GENERIC,
+            file        = path,
+            description = (
+                "This file was checked for exposed secrets/credentials only. "
+                "Time/space complexity and code-quality checks only run for .sql and .py files."
+            ),
+        ))
+
+    return findings
 
 
 def scan_secrets(root: str = ".") -> List[Finding]:

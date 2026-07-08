@@ -21,6 +21,7 @@ class Category(str, Enum):
     PYTHON_QUALITY     = "python_quality"
     DEPENDENCY         = "dependency"
     DBT_QUALITY        = "dbt_quality"
+    GENERIC            = "generic"
 
 
 @dataclass

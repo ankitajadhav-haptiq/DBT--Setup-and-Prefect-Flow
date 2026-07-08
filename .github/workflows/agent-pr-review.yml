@@ -28,19 +28,18 @@ jobs:
       - name: Install dependencies
         run: pip install --quiet pyyaml requests
 
-      - name: Detect changed SQL/Python files
+      - name: Detect changed files
         id: changed
         run: |
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
           FILES=$(git diff --name-only "$BASE"..."$HEAD" --diff-filter=ACM \
-                  | grep -E '\.(sql|py)$' \
-                  | grep -vE '^(env|\.venv|venv)/' \
+                  | grep -vE '^(env|\.venv|venv|target|dbt_packages|node_modules)/' \
                   | tr '\n' ' ')
           echo "files=$FILES" >> "$GITHUB_OUTPUT"
           COUNT=$(echo "$FILES" | wc -w | tr -d ' ')
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "Changed SQL/Python files ($COUNT): $FILES"
+          echo "Changed files ($COUNT): $FILES"
 
       - name: Run agent on changed files
         id: review
@@ -54,9 +53,9 @@ jobs:
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
-      - name: No SQL/Python files changed
+      - name: No files changed
         if: steps.changed.outputs.count == '0'
-        run: echo "No SQL or Python files changed — skipping agent review."
+        run: echo "No added/modified files — skipping agent review."
 
       - name: Build review body
         id: body

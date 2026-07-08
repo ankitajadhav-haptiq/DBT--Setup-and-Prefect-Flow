@@ -222,7 +222,9 @@ class CustomAgent:
 
         # ── Determine file list ────────────────────────────────────────────────
         if full_repo_mode:
-            scan_files = [f for f in files if f.endswith((".sql", ".py"))]
+            # CI passes every changed/added file — scan_path() falls back to a
+            # generic secrets-only check for extensions with no dedicated scanner.
+            scan_files = list(files)
         else:
             staged_raw = self.tools["list_staged_files"].run("")
             tool_calls.append("list_staged_files")
@@ -248,12 +250,13 @@ class CustomAgent:
             elapsed  = int((time.time() - t0) * 1000)
 
             file_findings.append((fp, findings))
-            tool_calls.append("scan_sql_file" if fp.endswith(".sql") else "scan_python_file")
+            action_name = self._scan_action_name(fp)
+            tool_calls.append(action_name)
 
             steps.append(AgentStep(
                 step_number  = len(steps) + 1,
                 thought      = f"Scan {fp}",
-                action       = "scan_sql_file" if fp.endswith(".sql") else "scan_python_file",
+                action       = action_name,
                 action_input = fp,
                 observation  = f"{len(findings)} finding(s)",
                 elapsed_ms   = elapsed,
@@ -313,6 +316,14 @@ class CustomAgent:
         )
 
     # ── Helpers ─────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _scan_action_name(fp: str) -> str:
+        if fp.endswith(".sql"):
+            return "scan_sql_file"
+        if fp.endswith(".py"):
+            return "scan_python_file"
+        return "scan_generic_file"
 
     def _parse_action(self, text: str):
         """Extract (action, action_input) from LLM response."""
