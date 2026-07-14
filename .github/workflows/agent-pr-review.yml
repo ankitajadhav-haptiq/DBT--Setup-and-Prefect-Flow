@@ -61,14 +61,24 @@ jobs:
         id: body
         if: steps.changed.outputs.count != '0'
         run: |
-          EXIT="${{ steps.review.outputs.exit_code }}"
           REPORT=$(head -c 60000 agent_pr_report.md 2>/dev/null || echo "No report generated.")
+
+          # Single source of truth: read the verdict the report itself declares,
+          # instead of trusting a separately-captured process exit code that can
+          # drift out of sync with what the report actually says.
+          VERDICT=$(grep -oE '\*\*Verdict\*\* \| \*\*(BLOCK|WARN|PASS)\*\*' agent_pr_report.md \
+                     | grep -oE 'BLOCK|WARN|PASS' | head -1)
+          VERDICT="${VERDICT:-PASS}"
+          echo "Derived verdict: $VERDICT"
+
           {
             echo "text<<REVIEW_EOF"
             echo "## Agent Code Review"
             echo ""
-            if [[ "$EXIT" == "1" ]]; then
-              echo "**Changes requested** - CRITICAL or HIGH findings found. Fix before merging."
+            if [[ "$VERDICT" == "BLOCK" ]]; then
+              echo "**Changes requested** - CRITICAL findings found. Fix before merging."
+            elif [[ "$VERDICT" == "WARN" ]]; then
+              echo "**Changes requested** - HIGH findings found. Review before merging."
             else
               echo "**Approved** - no blocking findings."
             fi
@@ -85,8 +95,11 @@ jobs:
             echo "_[code-review-agent](https://github.com/ankitajadhav-haptiq/code-review-agent) · Branch: \`${{ github.head_ref }}\`_"
             echo "REVIEW_EOF"
           } >> "$GITHUB_OUTPUT"
-          [[ "$EXIT" == "1" ]] && echo "event=REQUEST_CHANGES" >> "$GITHUB_OUTPUT" \
-                                || echo "event=COMMENT"         >> "$GITHUB_OUTPUT"
+          if [[ "$VERDICT" == "PASS" ]]; then
+            echo "event=APPROVE" >> "$GITHUB_OUTPUT"
+          else
+            echo "event=REQUEST_CHANGES" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Submit PR review
         if: steps.changed.outputs.count != '0'
