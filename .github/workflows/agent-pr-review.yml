@@ -3,6 +3,17 @@ name: Agent PR Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      full_repo:
+        description: "Scan the entire repository instead of just a PR's changed files"
+        required: false
+        default: false
+        type: boolean
+      pr_number:
+        description: "PR number to post the review to (optional — leave blank to just get the report as a build artifact)"
+        required: false
+        type: string
 
 permissions:
   pull-requests: write
@@ -30,6 +41,7 @@ jobs:
 
       - name: Detect changed files
         id: changed
+        if: github.event_name == 'pull_request'
         run: |
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
@@ -41,25 +53,27 @@ jobs:
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
           echo "Changed files ($COUNT): $FILES"
 
-      - name: Run agent on changed files
+      - name: No files changed
+        if: github.event_name == 'pull_request' && steps.changed.outputs.count == '0'
+        run: echo "No added/modified files — skipping agent review."
+
+      - name: Run agent
         id: review
-        if: steps.changed.outputs.count != '0'
+        if: |
+          (github.event_name == 'pull_request' && steps.changed.outputs.count != '0') ||
+          github.event_name == 'workflow_dispatch'
         run: |
           set +e
-          python custom_agent/main.py \
-            --mode static \
-            --files ${{ steps.changed.outputs.files }} \
-            --output agent_pr_report.md \
-            --ci
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            python custom_agent/main.py --mode static --full-repo --output agent_pr_report.md --ci
+          else
+            python custom_agent/main.py --mode static --files ${{ steps.changed.outputs.files }} --output agent_pr_report.md --ci
+          fi
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
-
-      - name: No files changed
-        if: steps.changed.outputs.count == '0'
-        run: echo "No added/modified files — skipping agent review."
 
       - name: Build review body
         id: body
-        if: steps.changed.outputs.count != '0'
+        if: steps.review.outcome == 'success'
         run: |
           REPORT=$(head -c 60000 agent_pr_report.md 2>/dev/null || echo "No report generated.")
 
@@ -70,6 +84,12 @@ jobs:
                      | grep -oE 'BLOCK|WARN|PASS' | head -1)
           VERDICT="${VERDICT:-PASS}"
           echo "Derived verdict: $VERDICT"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SCANNED="(full repository scan)"
+          else
+            SCANNED="${{ steps.changed.outputs.files }}"
+          fi
 
           {
             echo "text<<REVIEW_EOF"
@@ -83,7 +103,7 @@ jobs:
               echo "**Approved** - no blocking findings."
             fi
             echo ""
-            echo "**Scanned:** \`${{ steps.changed.outputs.files }}\`"
+            echo "**Scanned:** \`$SCANNED\`"
             echo ""
             echo "<details><summary>Full findings (click to expand)</summary>"
             echo ""
@@ -102,26 +122,30 @@ jobs:
           fi
 
       - name: Submit PR review
-        if: steps.changed.outputs.count != '0'
+        if: |
+          steps.review.outcome == 'success' &&
+          (github.event_name == 'pull_request' || inputs.pr_number != '')
         uses: actions/github-script@v7
         env:
           REVIEW_BODY:  ${{ steps.body.outputs.text }}
           REVIEW_EVENT: ${{ steps.body.outputs.event }}
+          PR_NUMBER:    ${{ github.event.pull_request.number || inputs.pr_number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body  = process.env.REVIEW_BODY;
-            const event = process.env.REVIEW_EVENT;
+            const body        = process.env.REVIEW_BODY;
+            const event       = process.env.REVIEW_EVENT;
+            const pull_number = parseInt(process.env.PR_NUMBER, 10);
 
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner, repo: context.repo.repo,
-              pull_number: context.issue.number,
+              pull_number,
             });
             for (const r of reviews) {
               if (r.user.type === 'Bot' && r.state === 'CHANGES_REQUESTED') {
                 await github.rest.pulls.dismissReview({
                   owner: context.repo.owner, repo: context.repo.repo,
-                  pull_number: context.issue.number,
+                  pull_number,
                   review_id: r.id,
                   message: 'Superseded by updated agent review.',
                 });
@@ -130,12 +154,12 @@ jobs:
 
             await github.rest.pulls.createReview({
               owner: context.repo.owner, repo: context.repo.repo,
-              pull_number: context.issue.number,
+              pull_number,
               body: body, event: event,
             });
 
       - name: Upload HTML report
-        if: always() && steps.changed.outputs.count != '0'
+        if: always() && steps.review.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: agent-report-html

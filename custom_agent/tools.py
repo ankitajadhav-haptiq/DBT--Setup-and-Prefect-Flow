@@ -290,7 +290,7 @@ def _check_secrets(path: str) -> str:
 # ── Full-repo listing ──────────────────────────────────────────────────────
 
 _SKIP_DIRS = {
-    ".git", ".venv", "__pycache__", "target", "dbt_packages",
+    ".git", ".venv", "venv", "env", "__pycache__", "target", "dbt_packages",
     "node_modules", "audit_workspace", ".mypy_cache",
 }
 
