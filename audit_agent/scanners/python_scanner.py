@@ -177,23 +177,32 @@ class PythonScanner(BaseScanner):
     def _scan_file(self, content: str, path: str) -> List[Finding]:
         out: List[Finding] = []
 
-        # ── Regex-based quick checks (no AST needed) ─────────────────────
-        out.extend(self._check_regex_patterns(content, path))
-
-        # ── AST-based checks ─────────────────────────────────────────────
+        # Parse AST first (if possible) so regex-based checks can cross-check
+        # a match isn't just text inside a string/docstring/comment before
+        # treating it as real, executable code.
+        tree: Optional[ast.AST] = None
         try:
             tree = ast.parse(content)
-        except SyntaxError as e:
-            out.append(Finding(
-                check_id   = "PY-Q001",
-                title      = "Python syntax error",
-                severity   = Severity.HIGH,
-                category   = Category.PYTHON_QUALITY,
-                file       = path,
-                line       = getattr(e, "lineno", 0) or 0,
-                description= f"File cannot be parsed: {e}",
-                suggestion = "Fix the syntax error before running the audit.",
-            ))
+        except SyntaxError:
+            pass
+
+        # ── Regex-based quick checks (no AST needed) ─────────────────────
+        out.extend(self._check_regex_patterns(content, path, tree))
+
+        if tree is None:
+            try:
+                ast.parse(content)
+            except SyntaxError as e:
+                out.append(Finding(
+                    check_id   = "PY-Q001",
+                    title      = "Python syntax error",
+                    severity   = Severity.HIGH,
+                    category   = Category.PYTHON_QUALITY,
+                    file       = path,
+                    line       = getattr(e, "lineno", 0) or 0,
+                    description= f"File cannot be parsed: {e}",
+                    suggestion = "Fix the syntax error before running the audit.",
+                ))
             return out
 
         out.extend(self._check_complexity(content, tree, path))
@@ -202,8 +211,18 @@ class PythonScanner(BaseScanner):
 
     # ── Regex checks ───────────────────────────────────────────────────────
 
-    def _check_regex_patterns(self, content: str, path: str) -> List[Finding]:
+    def _check_regex_patterns(self, content: str, path: str, tree: Optional[ast.AST] = None) -> List[Finding]:
         out: List[Finding] = []
+
+        # Real eval(...) call sites confirmed via AST — used to gate
+        # suggested_fix so it never fires on the word "eval(" appearing
+        # inside a string literal, docstring, or comment.
+        real_eval_lines = set()
+        if tree is not None:
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                        and node.func.id == "eval"):
+                    real_eval_lines.add(node.lineno)
 
         if RE_SUBPROCESS_SHELL.search(content):
             line = content[: RE_SUBPROCESS_SHELL.search(content).start()].count("\n") + 1
@@ -229,10 +248,12 @@ class PythonScanner(BaseScanner):
 
         for m in RE_EVAL.finditer(content):
             line = content[: m.start()].count("\n") + 1
-            line_start = content.rfind("\n", 0, m.start()) + 1
-            col        = m.start() - line_start
-            line_text  = content.splitlines()[line - 1]
-            fixed_line = line_text[:col] + "ast.literal_eval(" + line_text[col + len("eval("):]
+            fixed_line = None
+            if line in real_eval_lines:
+                line_start = content.rfind("\n", 0, m.start()) + 1
+                col        = m.start() - line_start
+                line_text  = content.splitlines()[line - 1]
+                fixed_line = line_text[:col] + "ast.literal_eval(" + line_text[col + len("eval("):]
             out.append(Finding(
                 check_id     = "PY-S002",
                 title        = "eval() call — arbitrary code execution risk",
