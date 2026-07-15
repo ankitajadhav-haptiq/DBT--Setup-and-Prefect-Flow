@@ -1588,6 +1588,8 @@ def build_html(
 
 
 def _secrets_manifest(scan_root: Path) -> dict:
+    from audit_agent.scanners.secrets_scanner import _RE_PRIVATE_KEY_BLOCK
+
     manifest: dict = {
         "root": str(scan_root),
         "summary": {"private_key_files": [], "env_files": []},
@@ -1598,12 +1600,16 @@ def _secrets_manifest(scan_root: Path) -> dict:
         if any(p in _SKIP for p in fp.parts):
             continue
         if fp.suffix in {".p8", ".pem", ".key"} and fp.is_file():
-            rel = str(fp.relative_to(scan_root))
-            manifest["summary"]["private_key_files"].append(rel)
-            manifest["credential_risks"].append({
-                "file": rel, "risk": "private_key_in_repo",
-                "severity": "CRITICAL", "cwe": "CWE-312",
-            })
+            # Match by content, not just extension — a vendored CA bundle
+            # (e.g. certifi's cacert.pem) has the same extension as a real
+            # private key but contains CERTIFICATE blocks, not PRIVATE KEY ones.
+            if _RE_PRIVATE_KEY_BLOCK.search(fp.read_text(errors="ignore")):
+                rel = str(fp.relative_to(scan_root))
+                manifest["summary"]["private_key_files"].append(rel)
+                manifest["credential_risks"].append({
+                    "file": rel, "risk": "private_key_in_repo",
+                    "severity": "CRITICAL", "cwe": "CWE-312",
+                })
         if fp.name == ".env" and fp.is_file():
             active = [l for l in fp.read_text(errors="ignore").splitlines()
                       if "=" in l and not l.strip().startswith("#")]
