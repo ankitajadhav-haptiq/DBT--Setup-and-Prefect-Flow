@@ -18,4 +18,3 @@ from hours_by_site ah
 cross join sizes_by_site ls
 where upper(trim(ah.site_id)) = upper(trim(ls.site_id))
   and ah.usage_date = ls.usage_date
-order by ah.usage_date desc
