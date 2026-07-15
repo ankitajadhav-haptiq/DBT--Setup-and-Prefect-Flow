@@ -451,6 +451,28 @@ def _git_show(path: str) -> str:
     return r.stdout
 
 
+def _github_repo_slug() -> str:
+    """Return 'owner/repo' parsed from the git remote origin URL, or '' if unavailable."""
+    import subprocess
+    r = subprocess.run(
+        ["git", "config", "--get", "remote.origin.url"],
+        capture_output=True, text=True, cwd=str(_REPO_ROOT),
+    )
+    url = r.stdout.strip()
+    m = re.search(r"github\.com[:/](.+?)(?:\.git)?$", url)
+    return m.group(1) if m else ""
+
+
+def _github_ref() -> str:
+    """Return the current commit SHA, so links point at exactly what was scanned."""
+    import subprocess
+    r = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True, text=True, cwd=str(_REPO_ROOT),
+    )
+    return r.stdout.strip() or "main"
+
+
 def _sql_manifest(path: str, content: str) -> dict:
     return {
         "sql_files": [{
@@ -739,6 +761,25 @@ def build_html(
 
     now = datetime.now().strftime("%Y-%m-%d  %H:%M")
 
+    # Deep-link each finding's filepath to the exact scanned commit on GitHub
+    # (with a #L{line} anchor) so clicking it opens the real file, highlighted
+    # at the flagged line — falls back to plain text if there's no remote.
+    _repo_slug = _github_repo_slug()
+    _ref       = _github_ref()
+
+    def _source_link(filepath: str, line: int = 0) -> str:
+        if not _repo_slug:
+            return ""
+        anchor = f"#L{line}" if line else ""
+        return f"https://github.com/{_repo_slug}/blob/{_ref}/{filepath}{anchor}"
+
+    def _filepath_html(filepath: str, line: int = 0) -> str:
+        link = _source_link(filepath, line)
+        if link:
+            return (f'<a class="filepath" href="{_esc(link)}" '
+                     f'target="_blank" rel="noopener">{_esc(filepath)}</a>')
+        return f'<span class="filepath">{_esc(filepath)}</span>'
+
     # ── Count by severity ──────────────────────────────────────────────────────
     all_f: List[Finding] = [f for _, fs in file_findings for f in fs] + secret_findings
     counts: Dict[str, int] = {s.value: 0 for s in Severity}
@@ -845,7 +886,9 @@ def build_html(
     .badge.MEDIUM   { background:rgba(240,192,96,.13); color:var(--amber); }
     .badge.LOW      { background:rgba(74,143,204,.13); color:var(--blue); }
     .badge.INFO     { background:rgba(110,123,140,.15);color:var(--muted); }
-    .filepath { font-size:12px; color:var(--blue); flex:1; word-break:break-all; line-height:1.5; }
+    .filepath { font-size:12px; color:var(--blue); flex:1; word-break:break-all; line-height:1.5;
+                text-decoration:none; }
+    a.filepath:hover { text-decoration:underline; color:var(--cyan); }
     .line-tag { font-size:11px; color:var(--muted); white-space:nowrap; }
 
     /* DOMAIN CHIPS */
@@ -1357,7 +1400,7 @@ def build_html(
             f'<div class="card-body">'
             f'<div class="card-head">'
             f'<span class="badge {sev}">{check}</span>'
-            f'<span class="filepath">{_esc(filepath)}</span>'
+            f'{_filepath_html(filepath, f.line)}'
             f'{line_tag}'
             f'</div>'
             f'{_domain_chip(domain)}'
@@ -1405,7 +1448,7 @@ def build_html(
             f'<div class="card-body">'
             f'<div class="card-head">'
             f'<span class="badge {sev}">{check}</span>'
-            f'<span class="filepath">{_esc(filepath)}</span>'
+            f'{_filepath_html(filepath, f.line)}'
             f'{line_tag}'
             f'</div>'
             f'{_domain_chip(domain)}'
@@ -1429,7 +1472,7 @@ def build_html(
                     cards_for_sev += _finding_card(filepath, f)
         for f in secret_findings:
             if f.severity.value == sev:
-                cards_for_sev += _finding_card("secrets-scan", f)
+                cards_for_sev += _finding_card(f.file or "secrets-scan", f)
         if cards_for_sev:
             sections_html += (
                 f'<div class="section-label" id="lbl-{group}">{label}</div>\n'
