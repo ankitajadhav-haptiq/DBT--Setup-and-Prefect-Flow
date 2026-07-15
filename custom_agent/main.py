@@ -31,7 +31,7 @@ from custom_agent.tools  import ALL_TOOLS
 from custom_agent.llm    import build_llm, OllamaLLM, RuleBasedLLM
 
 
-def _run_full_repo(agent, args):
+def _run_full_repo(agent, args, mode_override=None):
     """Collect all repo files matching filters, then run the static scanner over them."""
     # --files takes precedence over full-repo discovery
     if getattr(args, "files", None):
@@ -53,7 +53,7 @@ def _run_full_repo(agent, args):
         return AgentResult(
             output   = "## Code Review\nNo files found matching the given filters.",
             steps    = [],
-            mode     = "static",
+            mode     = mode_override or "static",
             tool_calls = [],
             verdict  = "PASS",
         )
@@ -68,7 +68,7 @@ def _run_full_repo(agent, args):
     if "staged" in task.lower():
         task = f"Scan all {len(all_files)} repository files for security vulnerabilities, time/space complexity issues, and code quality problems."
 
-    return agent._run_static(task, files=all_files)
+    return agent._run_static(task, files=all_files, mode_override=mode_override)
 
 
 def main():
@@ -98,6 +98,9 @@ def main():
                         help="Filter by domain when using --full-repo: GOPOD, PHOTO, UNIFI, macros")
     parser.add_argument("--ext",       default=".sql,.py",
                         help="File extensions to include (default: .sql,.py)")
+    parser.add_argument("--trigger",   default="manual",
+                        help="What invoked this run, for the report header, "
+                             "e.g. pull_request, workflow_dispatch, manual")
     args = parser.parse_args()
 
     memory = AgentMemory()
@@ -125,11 +128,16 @@ def main():
         llm     = llm,
         memory  = memory,
         verbose = args.verbose or not args.ci,
+        trigger = args.trigger,
     )
 
     try:
         if args.full_repo or args.files:
-            result = _run_full_repo(agent, args)
+            # "full-repo" only when actually discovering every file in the repo;
+            # an explicit --files list (e.g. a PR's changed files) is a targeted
+            # scan and should say so, not be mislabeled as scanning everything.
+            mode_override = "full-repo" if not args.files else "pr-diff"
+            result = _run_full_repo(agent, args, mode_override=mode_override)
         else:
             result = agent.run(args.task)
     except KeyboardInterrupt:

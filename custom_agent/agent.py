@@ -206,7 +206,7 @@ class CustomAgent:
 
     # ── Static (rule-based) mode ────────────────────────────────────────────
 
-    def _run_static(self, task: str, files: List[str] = None) -> AgentResult:
+    def _run_static(self, task: str, files: List[str] = None, mode_override: str = None) -> AgentResult:
         """
         Runs all scanners in sequence, prints structured terminal output,
         and returns an AgentResult with a Markdown report as output.
@@ -267,7 +267,7 @@ class CustomAgent:
         tool_calls.append("check_secrets")
 
         # ── Print structured terminal output ───────────────────────────────────
-        mode_label = "full-repo" if full_repo_mode else "static"
+        mode_label = mode_override or ("full-repo" if full_repo_mode else "static")
         if self.verbose:
             verdict = print_report(
                 file_findings   = file_findings,

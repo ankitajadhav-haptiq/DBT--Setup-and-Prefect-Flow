@@ -65,9 +65,9 @@ jobs:
         run: |
           set +e
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            python custom_agent/main.py --mode static --full-repo --output agent_pr_report.md --ci
+            python custom_agent/main.py --mode static --full-repo --trigger workflow_dispatch --output agent_pr_report.md --ci
           else
-            python custom_agent/main.py --mode static --files ${{ steps.changed.outputs.files }} --output agent_pr_report.md --ci
+            python custom_agent/main.py --mode static --files ${{ steps.changed.outputs.files }} --trigger pull_request --output agent_pr_report.md --ci
           fi
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
@@ -112,7 +112,7 @@ jobs:
             echo "</details>"
             echo ""
             echo "---"
-            echo "_[code-review-agent](https://github.com/ankitajadhav-haptiq/code-review-agent) · Branch: \`${{ github.head_ref }}\`_"
+            echo "_[code-review-agent](https://github.com/${{ github.repository }}/tree/${{ github.sha }}/custom_agent) · Branch: \`${{ github.head_ref }}\`_"
             echo "REVIEW_EOF"
           } >> "$GITHUB_OUTPUT"
           if [[ "$VERDICT" == "PASS" ]]; then
