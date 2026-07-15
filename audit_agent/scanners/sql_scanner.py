@@ -304,6 +304,20 @@ class SQLScanner(BaseScanner):
                 space_complexity = space_complexity,
             ))
 
+        # Always surface the file's overall estimated complexity, even when
+        # no specific complexity issue was flagged — so every scanned file
+        # shows its Big-O in the PR review, not just the ones with findings.
+        out.append(Finding(
+            check_id         = "SQL-C000",
+            title            = "Overall estimated complexity",
+            severity         = Severity.INFO,
+            category         = Category.SQL_COMPLEXITY,
+            file             = path,
+            description      = f"{time_rationale} {space_rationale}",
+            time_complexity  = time_complexity,
+            space_complexity = space_complexity,
+        ))
+
         return out
 
     # ── Quality ────────────────────────────────────────────────────────────

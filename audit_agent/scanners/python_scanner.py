@@ -406,6 +406,36 @@ class PythonScanner(BaseScanner):
                 space_complexity = "O(n²) — nested accumulation",
             ))
 
+        # Always surface the file's overall estimated complexity, even when
+        # no specific complexity issue was flagged — so every scanned file
+        # shows its Big-O in the PR review, not just the ones with findings.
+        if max_nesting == 0:
+            overall_time = "O(1) — no loops detected"
+        elif max_nesting == 1:
+            overall_time = "O(n) — single loop"
+        elif max_nesting <= 4:
+            overall_time = f"O(n^{max_nesting}) — {max_nesting} nested loop levels"
+        else:
+            overall_time = "O(exponential) — deeply nested loops"
+
+        if nested_build_lines:
+            overall_space = "O(n²) — nested accumulation"
+        elif recursive:
+            overall_space = "O(depth) — recursive call stack"
+        else:
+            overall_space = "O(n) — linear"
+
+        out.append(Finding(
+            check_id         = "PY-C000",
+            title            = "Overall estimated complexity",
+            severity         = Severity.INFO,
+            category         = Category.PYTHON_COMPLEXITY,
+            file             = path,
+            description      = f"Cyclomatic complexity: {cc} ({_cc_grade(cc)}). Max loop nesting: {max_nesting}.",
+            time_complexity  = overall_time,
+            space_complexity = overall_space,
+        ))
+
         return out
 
     # ── Quality checks ─────────────────────────────────────────────────────
