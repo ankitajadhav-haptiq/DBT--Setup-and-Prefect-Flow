@@ -353,12 +353,21 @@ class SQLScanner(BaseScanner):
                 after_last = stripped[last_order_by[-1]:]
                 # If nothing but whitespace/column names after ORDER BY — it's the final sort
                 if not re.search(r"\)\s*$", after_last.strip()) and ")" not in after_last[:50]:
+                    # Map the match position back to the un-stripped `sql` to get
+                    # real line numbers, so this can be offered as a one-click
+                    # GitHub suggestion — the whole clause is safe to delete
+                    # outright since it's confirmed to be the query's final sort.
+                    leading_ws = len(sql) - len(sql.lstrip())
+                    start_pos  = leading_ws + last_order_by[-1]
+                    start_line = sql[:start_pos].count("\n") + 1
+                    end_line   = len(sql.rstrip().splitlines())
                     out.append(Finding(
                         check_id   = "SQL-Q002",
                         title      = "ORDER BY in table materialization — compute waste",
                         severity   = Severity.MEDIUM,
                         category   = Category.SQL_QUALITY,
                         file       = path,
+                        line       = end_line,
                         code_snippet = _extract_lines(sql, re.compile(r'\border\s+by\b', re.I), context=5, last=True),
                         description= (
                             "Snowflake does not honor ORDER BY when writing to a TABLE. "
@@ -371,6 +380,8 @@ class SQLScanner(BaseScanner):
                             "and apply ORDER BY in the consuming query instead."
                         ),
                         time_complexity = "Saves O(n log n) sort cost per run",
+                        suggested_fix            = "",
+                        suggested_fix_start_line = start_line if start_line != end_line else None,
                     ))
 
         # Stale file detection (old/backup files)

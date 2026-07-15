@@ -229,6 +229,10 @@ class PythonScanner(BaseScanner):
 
         for m in RE_EVAL.finditer(content):
             line = content[: m.start()].count("\n") + 1
+            line_start = content.rfind("\n", 0, m.start()) + 1
+            col        = m.start() - line_start
+            line_text  = content.splitlines()[line - 1]
+            fixed_line = line_text[:col] + "ast.literal_eval(" + line_text[col + len("eval("):]
             out.append(Finding(
                 check_id     = "PY-S002",
                 title        = "eval() call — arbitrary code execution risk",
@@ -240,6 +244,7 @@ class PythonScanner(BaseScanner):
                 description  = "eval() executes arbitrary Python code. If the argument is externally influenced, this is a critical RCE vulnerability.",
                 suggestion   = "Replace eval() with ast.literal_eval() for safe evaluation of Python literals.",
                 cwe          = "CWE-95",
+                suggested_fix = fixed_line,
             ))
 
         for m in RE_SQL_CONCAT.finditer(content):

@@ -57,6 +57,7 @@ class AgentResult:
     verdict:      str = "PASS"        # BLOCK / WARN / PASS (parsed from output)
     elapsed_s:    float = 0.0
     html_content: str = ""            # Artifact-style HTML report (populated by static mode)
+    raw_findings: list = field(default_factory=list)  # Flat Finding list (populated by static mode)
 
     def has_critical(self) -> bool:
         return "CRITICAL" in self.output.upper() or self.verdict == "BLOCK"
@@ -306,6 +307,8 @@ class CustomAgent:
             verdict         = verdict,
         )
 
+        all_findings = [f for _, fs in file_findings for f in fs] + secret_findings
+
         return AgentResult(
             output       = markdown,
             steps        = steps,
@@ -313,6 +316,7 @@ class CustomAgent:
             tool_calls   = tool_calls,
             verdict      = verdict,
             html_content = html,
+            raw_findings = all_findings,
         )
 
     # ── Helpers ─────────────────────────────────────────────────────────────

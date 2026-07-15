@@ -40,6 +40,12 @@ class Finding:
     space_complexity:  Optional[str]  = None
     cwe:               Optional[str]  = None
     owasp:             Optional[str]  = None
+    # Exact replacement text for the line(s) [suggested_fix_start_line, line]
+    # (or just `line` alone if suggested_fix_start_line is None) — only set
+    # when a fix can be generated deterministically and safely as a GitHub
+    # "suggested change". Most findings leave this None and stay text-only.
+    suggested_fix:            Optional[str] = None
+    suggested_fix_start_line: Optional[int] = None
 
     def to_dict(self) -> dict:
         return {

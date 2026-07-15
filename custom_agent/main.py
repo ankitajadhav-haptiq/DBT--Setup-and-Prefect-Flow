@@ -163,6 +163,26 @@ def main():
     html_path = output_path.with_suffix(".html")
     if result.html_content:
         html_path.write_text(result.html_content, encoding="utf-8")
+
+    # Sidecar JSON of GitHub-suggestable fixes (exact line replacements only —
+    # see Finding.suggested_fix) — consumed by the CI workflow to post one-click
+    # "Apply suggestion" review comments instead of just descriptive text.
+    suggestions = [
+        {
+            "file": f.file,
+            "line": f.line,
+            "start_line": f.suggested_fix_start_line,
+            "suggestion": f.suggested_fix,
+            "check_id": f.check_id,
+            "title": f.title,
+        }
+        for f in result.raw_findings
+        if f.suggested_fix is not None and f.line
+    ]
+    if suggestions:
+        import json
+        suggestions_path = output_path.with_name(output_path.stem + "_suggestions.json")
+        suggestions_path.write_text(json.dumps(suggestions, indent=2), encoding="utf-8")
     if not args.ci:
         print(f"  Report saved → {output_path}")
         if result.html_content:

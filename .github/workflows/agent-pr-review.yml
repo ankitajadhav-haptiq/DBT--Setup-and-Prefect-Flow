@@ -133,6 +133,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs          = require('fs');
             const body        = process.env.REVIEW_BODY;
             const event       = process.env.REVIEW_EVENT;
             const pull_number = parseInt(process.env.PR_NUMBER, 10);
@@ -152,11 +153,43 @@ jobs:
               }
             }
 
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner, repo: context.repo.repo,
-              pull_number,
-              body: body, event: event,
-            });
+            // One-click "Apply suggestion" inline comments, for the small set
+            // of findings where a fix can be generated safely (see
+            // Finding.suggested_fix). Only valid on lines within this PR's
+            // diff, so a bad position could reject the whole review — build
+            // them, but fall back to a plain review if GitHub rejects any.
+            let comments = [];
+            const suggestionsPath = 'agent_pr_report_suggestions.json';
+            if (fs.existsSync(suggestionsPath)) {
+              const suggestions = JSON.parse(fs.readFileSync(suggestionsPath, 'utf8'));
+              comments = suggestions.map(s => {
+                const suggestionBody = s.suggestion === ''
+                  ? '```suggestion\n```'
+                  : '```suggestion\n' + s.suggestion + '\n```';
+                const comment = {
+                  path: s.file,
+                  line: s.line,
+                  body: `**${s.title}** (\`${s.check_id}\`)\n\n${suggestionBody}`,
+                };
+                if (s.start_line) comment.start_line = s.start_line;
+                return comment;
+              });
+            }
+
+            try {
+              await github.rest.pulls.createReview({
+                owner: context.repo.owner, repo: context.repo.repo,
+                pull_number,
+                body: body, event: event, comments,
+              });
+            } catch (e) {
+              core.warning(`createReview with ${comments.length} suggestion(s) failed (${e.message}); retrying without inline comments.`);
+              await github.rest.pulls.createReview({
+                owner: context.repo.owner, repo: context.repo.repo,
+                pull_number,
+                body: body, event: event,
+              });
+            }
 
       - name: Upload report
         if: always() && steps.review.outcome == 'success'
@@ -166,4 +199,5 @@ jobs:
           path: |
             agent_pr_report.md
             agent_pr_report.html
+            agent_pr_report_suggestions.json
           retention-days: 30
