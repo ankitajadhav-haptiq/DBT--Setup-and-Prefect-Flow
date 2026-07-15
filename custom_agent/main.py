@@ -145,17 +145,23 @@ def main():
     if args.trace:
         result.print_trace()
 
-    # Save report — .html gets the artifact-style visual report, anything else gets Markdown
-    output_path = args.output or "agent_report.md"
-    if output_path.endswith(".html") and result.html_content:
-        Path(output_path).write_text(result.html_content, encoding="utf-8")
-    else:
-        Path(output_path).write_text(result.output, encoding="utf-8")
+    # Save report — always write the Markdown, and always write the HTML
+    # sibling too (same stem, .html extension) so callers that only ask for
+    # one format still get the other for free — e.g. the CI workflow requests
+    # agent_pr_report.md but separately uploads agent_pr_report.html as an
+    # artifact, and previously got neither if the requested extension didn't match.
+    output_path = Path(args.output or "agent_report.md")
+    output_path.write_text(result.output, encoding="utf-8")
+    html_path = output_path.with_suffix(".html")
+    if result.html_content:
+        html_path.write_text(result.html_content, encoding="utf-8")
     if not args.ci:
         print(f"  Report saved → {output_path}")
-    if getattr(args, "open", False) and output_path.endswith(".html"):
+        if result.html_content:
+            print(f"  HTML report  → {html_path}")
+    if getattr(args, "open", False) and result.html_content:
         import webbrowser, os
-        webbrowser.open("file://" + os.path.abspath(output_path))
+        webbrowser.open("file://" + os.path.abspath(html_path))
 
     # Record in memory
     summary = {}
