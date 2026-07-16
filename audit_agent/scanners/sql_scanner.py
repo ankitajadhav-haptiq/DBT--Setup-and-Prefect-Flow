@@ -351,8 +351,15 @@ class SQLScanner(BaseScanner):
             last_order_by = [m.start() for m in RE_ORDER_BY.finditer(stripped)]
             if last_order_by:
                 after_last = stripped[last_order_by[-1]:]
+                # ORDER BY paired with LIMIT/FETCH/TOP is NOT wasteful — it
+                # determines *which* rows survive the limit (top-N), not just
+                # their arrangement, so it's load-bearing and must not be
+                # flagged or auto-deleted.
+                has_row_limit = bool(re.search(
+                    r"\b(limit|fetch\s+(?:first|next)|top)\b", after_last, re.IGNORECASE
+                ))
                 # If nothing but whitespace/column names after ORDER BY — it's the final sort
-                if not re.search(r"\)\s*$", after_last.strip()) and ")" not in after_last[:50]:
+                if not has_row_limit and not re.search(r"\)\s*$", after_last.strip()) and ")" not in after_last[:50]:
                     # Map the match position back to the un-stripped `sql` to get
                     # real line numbers, so this can be offered as a one-click
                     # GitHub suggestion — the whole clause is safe to delete
