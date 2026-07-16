@@ -426,6 +426,14 @@ def _count_by_sev(findings: List[Finding]) -> Dict[Severity, int]:
     return result
 
 
+def _md_lang(filepath: str) -> str:
+    if filepath.endswith(".sql"):
+        return "sql"
+    if filepath.endswith(".py"):
+        return "python"
+    return ""
+
+
 def _md_finding(f: Finding) -> str:
     icon  = _SEV_ICON[f.severity]
     line  = f" · line {f.line}" if f.line else ""
@@ -434,6 +442,9 @@ def _md_finding(f: Finding) -> str:
         f"**{icon} {f.severity.value}**{check}{line} — **{f.title}**  ",
         f"{f.description[:200]}  ",
     ]
+    if f.code_snippet:
+        lang = _md_lang(f.file)
+        parts.append(f"```{lang}\n{f.code_snippet}\n```")
     if f.suggestion:
         parts.append(f"> 💡 **Fix:** {f.suggestion[:200]}  ")
     if f.time_complexity:
