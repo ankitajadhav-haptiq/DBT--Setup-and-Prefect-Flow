@@ -29,16 +29,6 @@ class DependencyScanner(BaseScanner):
             ))
             return findings
 
-        # Locate requirements.txt files in the repo
-        req_files = [
-            f for f in manifest.get("yaml_configs", [])
-            if "requirements" in f["path"]
-        ] + [
-            {"path": p}
-            for p in (manifest.get("summary", {}).get("python_files_paths", []) or [])
-            if "requirements" in p
-        ]
-
         # Run pip-audit against the environment
         try:
             result = subprocess.run(
@@ -59,8 +49,11 @@ class DependencyScanner(BaseScanner):
                 ))
                 return findings
 
-            data = json.loads(result.stdout or "[]")
-            for vuln in data:
+            data = json.loads(result.stdout or "{}")
+            # pip-audit >=2.x wraps results as {"dependencies": [...]}; older
+            # versions returned a bare list — handle both without assuming one.
+            dependencies = data.get("dependencies", []) if isinstance(data, dict) else data
+            for vuln in dependencies:
                 pkg   = vuln.get("name", "unknown")
                 ver   = vuln.get("version", "?")
                 vulns = vuln.get("vulns", [])

@@ -13,7 +13,7 @@ All paths are relative to the repo root.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 _MEMORY_DIR = Path(__file__).parent / "memory"
@@ -71,12 +71,6 @@ class AgentMemory:
 
         return "\n".join(lines) if lines else "No prior run data."
 
-    def is_dismissed(self, check_id: str) -> bool:
-        return check_id in self._dismissed
-
-    def get_baseline_score(self) -> Optional[int]:
-        return self._baseline.get("risk_score")
-
     # ── Write API ──────────────────────────────────────────────────────────
 
     def record_run(self, risk_score: int, findings_summary: Dict[str, int], files: List[str]):
@@ -118,10 +112,6 @@ class AgentMemory:
             self._dismissed.append(check_id)
             self._save(self._dismissed_file, self._dismissed)
             print(f"  [memory] Dismissed: {check_id}")
-
-    def undismiss(self, check_id: str):
-        self._dismissed = [c for c in self._dismissed if c != check_id]
-        self._save(self._dismissed_file, self._dismissed)
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
