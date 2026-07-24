@@ -24,4 +24,3 @@ qualify row_number() over (
     partition by r.customer_id
     order by r.revenue_date desc
 ) = 1
-order by r.revenue_date desc
