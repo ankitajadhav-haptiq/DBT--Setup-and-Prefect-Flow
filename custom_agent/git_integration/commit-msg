@@ -24,7 +24,10 @@ fi
 
 # Strip comment lines (git includes the "# Please enter the commit message..."
 # template) and surrounding whitespace to see what the author actually wrote.
-CONTENT=$(grep -v '^\s*#' "$MSG_FILE" | sed '/^\s*$/d')
+# Use `|| true` so that grep returning exit code 1 (no matching lines) does not
+# abort the script under `set -e`.  `\s` is not portable in POSIX BRE, so use
+# the explicit character class `[[:space:]]` instead.
+CONTENT=$(grep -v '^[[:space:]]*#' "$MSG_FILE" | sed '/^[[:space:]]*$/d' || true)
 
 if [ -z "$CONTENT" ]; then
     echo ""
