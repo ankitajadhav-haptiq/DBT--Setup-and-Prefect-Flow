@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# pre-push hook — runs custom_agent's full-repo scan before every push.
+# Installed automatically by custom_agent/setup.sh (or copy manually):
+#   cp custom_agent/git_integration/pre-push .git/hooks/pre-push
+#   chmod +x .git/hooks/pre-push
+#
+# Exit 0 → push proceeds (PASS or WARN)
+# Exit 1 → push BLOCKED (CRITICAL findings found anywhere in the repo)
+#
+# Bypass in an emergency:  SKIP_AGENT=1 git push
+# ──────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+AGENT_DIR="$REPO_ROOT/custom_agent"
+PYTHON="${PYTHON:-python3}"
+
+if [ "${SKIP_AGENT:-0}" = "1" ]; then
+    echo "[custom-agent] SKIP_AGENT=1 set — skipping pre-push scan"
+    exit 0
+fi
+
+if [ ! -f "$AGENT_DIR/main.py" ]; then
+    echo "[custom-agent] custom_agent/main.py not found — skipping scan"
+    exit 0
+fi
+
+echo ""
+echo "┌─────────────────────────────────────────────────────┐"
+echo "│  custom_agent — Pre-Push Full Repository Scan        │"
+echo "└─────────────────────────────────────────────────────┘"
+
+cd "$REPO_ROOT"
+set +e
+"$PYTHON" "$AGENT_DIR/main.py" --mode static --full-repo --ci \
+    --output ".agent_pre_push_report.md"
+EXIT_CODE=$?
+set -e
+
+if [ $EXIT_CODE -eq 1 ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  ❌  PUSH BLOCKED — CRITICAL findings in the repo    ║"
+    echo "║  Fix them, or bypass: SKIP_AGENT=1 git push          ║"
+    echo "║  Full report: .agent_pre_push_report.md              ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+    exit 1
+fi
+
+echo ""
+echo "✅  Pre-push scan passed — no CRITICAL findings."
+echo ""
+exit 0

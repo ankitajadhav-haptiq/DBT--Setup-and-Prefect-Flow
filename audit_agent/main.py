@@ -102,6 +102,7 @@ def run_full_scan(scored: dict, manifest: dict, repo_path: str, output: str):
             "dbt_domains":        list(manifest.get("dbt_domains", {}).keys()),
             "risk_score":         str(scored["risk_score"]),
             "critical_count":     str(len(scored["by_priority"]["P0"])),
+            "private_key_files":  manifest.get("summary", {}).get("private_key_files", []),
         }
 
         print("\n[4/4] Running AI agents (needs Ollama on localhost:11434)...")

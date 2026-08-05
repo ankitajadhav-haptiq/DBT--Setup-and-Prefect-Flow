@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# commit-msg hook — sanity-checks the commit message format.
+# Installed automatically by custom_agent/setup.sh (or copy manually):
+#   cp custom_agent/git_integration/commit-msg .git/hooks/commit-msg
+#   chmod +x .git/hooks/commit-msg
+#
+# Deliberately permissive — no house style is enforced anywhere else in this
+# repo, so this only catches genuinely empty/placeholder messages (hard block)
+# and warns (without blocking) on an overly long subject line. Tighten the
+# checks here if the team adopts a stricter commit convention later.
+#
+# Bypass in an emergency:  SKIP_AGENT=1 git commit -m "..."
+# ──────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+MSG_FILE="$1"
+
+if [ "${SKIP_AGENT:-0}" = "1" ]; then
+    echo "[custom-agent] SKIP_AGENT=1 set — skipping commit-msg check"
+    exit 0
+fi
+
+# Strip comment lines (git includes the "# Please enter the commit message..."
+# template) and surrounding whitespace to see what the author actually wrote.
+# Use `|| true` so that grep returning exit code 1 (no matching lines) does not
+# abort the script under `set -e`.  `\s` is not portable in POSIX BRE, so use
+# the explicit character class `[[:space:]]` instead.
+CONTENT=$(grep -v '^[[:space:]]*#' "$MSG_FILE" | sed '/^[[:space:]]*$/d' || true)
+
+if [ -z "$CONTENT" ]; then
+    echo ""
+    echo "❌  Commit message is empty (or only contains the default template)."
+    echo "    Write a message describing what changed and why."
+    echo ""
+    exit 1
+fi
+
+SUBJECT=$(echo "$CONTENT" | head -n1)
+if [ "${#SUBJECT}" -gt 100 ]; then
+    echo "⚠️   Commit subject line is ${#SUBJECT} chars — consider keeping it under ~72."
+fi
+
+exit 0
